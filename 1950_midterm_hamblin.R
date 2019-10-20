@@ -28,7 +28,7 @@ sigmoid = function(x,a,b,xs,ys) {
 }
 
 #We might expect performance on a dot discrimination task to look something like this:
-plot(x, sigmoid(x,7,.5,1.5,.5), xlim = c(1,2.5), xlab = 'Dot Number Ratio', ylab='Accuracy', main='Dot Discrimination')
+plot(x, sigmoid(x,8,.5,1.5,.5), xlim = c(1,2.5), xlab = 'Dot Number Ratio', ylab='Accuracy', main='Dot Discrimination')
 
 #This curve will vary depending on the age and species of the subject being tested.
 
@@ -47,12 +47,12 @@ browseURL('https://github.com/chrishamblin7/stats1950_midterm/tree/master/python
   #generates 12,000 100x100 images with blue and red circular dots.
   #minimum number of dots in image:3
   #maximum number of dots in image:40
-  #minimum dot ratio: 19:21
-  #maximum dot ratio: 2:1
-  #All images are controlled for simple image statistics, like the area cover by each color
+  #minimum dot ratio: 21:19
+  #maximum dot ratio: 3:1
+  #All images are controlled for simple image statistics, like the area covered by each color
 
   #Here's a few sample images:
-    browseURL('https://github.com/chrishamblin7/stats1950_midterm/tree/master/sample_dots')    #change this to image
+    browseURL('https://github.com/chrishamblin7/stats1950_midterm/tree/master/sample_dots') 
 
 #CNN
     
@@ -78,10 +78,14 @@ browseURL('https://github.com/chrishamblin7/stats1950_midterm/tree/master/python
       #100 size sample minibatches
       #10,000 image training set
       #2,000 image test set after each epoch
-      #80 epochs
+      #40 epochs
     
-      
-# The responses of the network on the testing set were written to this csv over the course of 80 epochs
+
+    
+# DONT EXECUTE THE CODE FROM HERE TO 208 TO AVOID A LONG FOR LOOP !!!!!
+# JUST SKIP TO LINES 209 TO LOAD THE CSVS THESE LINES WOULD GENERATE 
+    
+# The responses of the network on the testing set were written to this csv over the course of 40 epochs
 cnn_data <- read.csv("simple_dot_comparison.csv")
 
 #Lets add some columns by pulling from the 'img_name' which has latent info about the content of the images
@@ -94,13 +98,45 @@ ratio_numeric <- vector() #fractional value of ratio (bigger/smaller)
 correct <- vector() # was the neural network correct in its response of which color had more dots?
 
 # Let also set up a dataframe with aggregate info about each epoch, well populate it as we run through our for loop
-# The columns will consist in accuracies associated with different ratio ranges 
-epoch_data <- data.frame("epoch" = 1:81,)
+# The columns will consist in accuracies associated with different ratio ranges
+#well bin the ratios every by .1 increments
+epoch_data <- data.frame("epoch" = 1:40,"total" = integer(40),"total_correct" = integer(40),"1.1_total" = integer(40),
+    "1.1_correct" = integer(40),"1.2_total" = integer(40), "1.2_correct" = integer(40),"1.3_total" = integer(40), "1.3_correct" = integer(40),
+    "1.4_total" = integer(40), "1.4_correct" = integer(40),"1.5_total" = integer(40), "1.5_correct" = integer(40),
+    "1.6_total" = integer(40), "1.6_correct" = integer(40),"1.7_total" = integer(40), "1.7_correct" = integer(40),
+    "1.8_total" = integer(40), "1.8_correct" = integer(40),"1.9_total" = integer(40), "1.9_correct" = integer(40),
+    "2.0_total" = integer(40), "2.0_correct" = integer(40),"2.1_total" = integer(40), "2.1_correct" = integer(40),
+    "2.2_total" = integer(40), "2.2_correct" = integer(40),"2.3_total" = integer(40), "2.3_correct" = integer(40),
+    "2.4_total" = integer(40), "2.4_correct" = integer(40),"2.5_total" = integer(40), "2.5_correct" = integer(40),
+    "2.6_total" = integer(40), "2.6_correct" = integer(40),"2.7_total" = integer(40), "2.7_correct" = integer(40),
+    "2.8_total" = integer(40), "2.8_correct" = integer(40),"2.9_total" = integer(40), "2.9_correct" = integer(40),
+    "3.0_total" = integer(40),"3.0_correct" = integer(40), check.names= F)
+
+#Heres a function for outputing the ratio bin a given numerical ratio should fall in:
+get_ratio_bin = function(ratio,max_ratio = 3.0, min_ratio = 1.1) {
+  bin_num <- as.numeric(ceiling(ratio/.1)*.1)
+  if ((bin_num > max_ratio) | (bin_num < min_ratio)) {
+    print('BIN_NUM OUT OF RANGE!')
+    print(as.character(bin_num))
+  }
+  if (bin_num == 2) {
+    return('2.0')
+  }
+  else if (bin_num == 3) {
+    return('3.0')
+  }
+  else {
+    return(as.character(bin_num))
+  }
+}
+
+
 
 for (i in 1:nrow(cnn_data)) {
-  if (i%%1000 == 0) {
+  if (i%%1000 == 0) {   #log progress
     print(i)
   }
+  #updating original dataframe
   if (cnn_data$prediction[i] == 0) {     #change to meaningful label
     cnn_data$prediction[i] <- 'blue'
   }
@@ -134,6 +170,20 @@ for (i in 1:nrow(cnn_data)) {
   else {
     ratio_numeric[i] <- img_numbers[3]/img_numbers[2]
   }
+  # updating epoch dataframe
+  epoch_data$total[epoch[i]] <- epoch_data$total[epoch[i]] +1
+  epoch_data$total_correct[epoch[i]] <- epoch_data$total_correct[epoch[i]]+correct[i]
+  char_bin_num <- get_ratio_bin(ratio_numeric[i])
+  if (char_bin_num == '3') {
+    char_bin_num <- '3.0'
+  }
+  if (char_bin_num == '2') {
+    char_bin_num <- '2.0'
+  }
+  total_ratio_bin_column <- paste(char_bin_num,'total', sep = '_')
+  correct_ratio_bin_column <- paste(char_bin_num,'correct', sep = '_')
+  epoch_data[epoch[i],total_ratio_bin_column] <- epoch_data[epoch[i],total_ratio_bin_column] + 1
+  epoch_data[epoch[i],correct_ratio_bin_column] <- epoch_data[epoch[i],correct_ratio_bin_column] + correct[i]
 }
 
 #factorize factors
@@ -152,7 +202,19 @@ cnn_data$num_total <- num_total
 cnn_data$ratio_factor <- ratio_factor
 cnn_data$ratio_numeric <- ratio_numeric
 
-#This per item dataframe is kind of huge, lets make a smaller dataframe with aggregate statistics about each epoch
+#Write intermediate outputs
+write.csv(cnn_data, file = "simple_dot_comparison_processed.csv")
+write.csv(epoch_data,file = "simple_dot_comparison_epochs.csv")
+
+#EXECUTE THESE TWO LINES INSTEAD !!!
+cnn_data <- read.csv("simple_dot_comparison_processed.csv")
+epoch_data <- read.csv("simple_dot_comparison_epochs.csv")
+
+
+#Lets see how our network improves over the course of training
+
+
+
 
 
 
