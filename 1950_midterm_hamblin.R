@@ -207,14 +207,108 @@ write.csv(cnn_data, file = "simple_dot_comparison_processed.csv")
 write.csv(epoch_data,file = "simple_dot_comparison_epochs.csv")
 
 #EXECUTE THESE TWO LINES INSTEAD !!!
-cnn_data <- read.csv("simple_dot_comparison_processed.csv")
-epoch_data <- read.csv("simple_dot_comparison_epochs.csv")
+cnn_data <- read.csv("simple_dot_comparison_processed.csv",check.names = F)
+epoch_data <- read.csv("simple_dot_comparison_epochs.csv",check.names = F)
+# refactor data if you loaded it preprocessed from the csv
+#epoch_data$epoch <- factor(epoch_data$epoch)
+cnn_data$epoch <- factor(cnn_data$epoch)
+cnn_data$ratio_factor <- factor(cnn_data$ratio_factor)
+cnn_data$correct <- factor(cnn_data$correct)
+cnn_data$prediction <- factor(cnn_data$prediction)
+cnn_data$target <- factor(cnn_data$target)
+
+epoch_data$total_accuracy <- epoch_data$total_correct/epoch_data$total #add a column for overall accuracy for each epoch
+
+#lets plot accuracy improvement over the course of training
+library(ggplot2)
+ggplot(epoch_data,aes(x=epoch, y=total_accuracy)) +
+  geom_line() +
+  geom_point() +
+  ggtitle('CNN Accuracy on Test Set') +
+  labs(y='Classification Accuracy', x = 'Epoch')
+
+#lets add accuracy columns for each of the raio bins
+ratio_bins <- c("1.1","1.2","1.3","1.4","1.5","1.6","1.7","1.8","1.9","2.0","2.1","2.2","2.3","2.4","2.5","2.6","2.7","2.8","2.9","3.0")
+for (i in 1:length(ratio_bins)) {
+  print(ratio_bins[i])
+  acc_column_name <- paste(ratio_bins[i],'accuracy',sep="_")
+  total_column_name <- paste(ratio_bins[i],'total',sep="_")
+  correct_column_name <- paste(ratio_bins[i],'correct',sep="_")
+  epoch_data[acc_column_name] <- epoch_data[correct_column_name]/epoch_data[total_column_name]
+}
+
+#finally lets look at some particular epochs and the accuracies over ratio bins to see if our network responds in a weber-like way
+# well right a plotting function that takes an epoch as its argument and plots the relation between accuracy and ratio
 
 
-#Lets see how our network improves over the course of training
+plot_epoch_ratio_accuracy = function(epoch_num,df=epoch_data,bins=ratio_bins) {
+  bin <- c()
+  acc <- c()
+  for (i in 1:length(bins)) {
+    bin[i] <- as.numeric(bins[i])
+    acc_column_name <- paste(bins[i],'accuracy',sep="_")
+    acc[i] <- df[epoch_num,acc_column_name]
+  }
+  plot_df <- data.frame(bin,acc)
+  ggplot(plot_df,aes(x=bin, y=acc)) +
+    geom_line() +
+    geom_point() +
+    ggtitle(sprintf('Epoch %s Accuracy',as.character(epoch_num))) +
+    labs(y='Classification Accuracy', x = 'Ratio Bin') +
+    scale_x_continuous(breaks=c(1.1,1.3,1.5,1.7,1.9,2.1,2.3,2.5,2.7,2.9))
+  
+}
+
+#Let's look at the first epoch (a mostly untrained model), the second (peformance in a local minima), the 15th epoch (performance halfway towards weight stablization), 
+#and the 25th and 40th epochs (see if model performance is the same across epochs once the accuracies seem stable).
+plot_epoch_ratio_accuracy(1)
+plot_epoch_ratio_accuracy(2)
+plot_epoch_ratio_accuracy(15)
+plot_epoch_ratio_accuracy(25)
+plot_epoch_ratio_accuracy(40)
+
+
+#Seems like the model tends towards something weber like, just with a just noticable difference thats really close to our smallest ratio, so we cant see that flat part of the curve.
+# Let's fit a logistic regression to all the individual binary responses in the 40th epoch and 15th epochs. We can see if the responses become 'more logistic' (weber-like)
+#as the model trains. Well compare the results of logistic regression with respect to ratio to logit with respect to total number of dots. We should expect a good fit for the
+#former but not the latter
+
+epoch_40_df <- subset(cnn_data,epoch == 40,select = c(correct,num_total,ratio_numeric))
+epoch_15_df <- subset(cnn_data,epoch == 15,select = c(correct,num_total,ratio_numeric))
+epoch_40_df$correct <- as.numeric(as.character(epoch_40_df$correct))
+epoch_15_df$correct <- as.numeric(as.character(epoch_15_df$correct))
+
+logit_ratio_40 <- glm(correct ~ ratio_numeric,data=epoch_40_df,family="binomial")
+logit_ratio_15 <- glm(correct ~ ratio_numeric,data=epoch_15_df,family="binomial")
+logit_total_40 <- glm(correct ~ num_total,data=epoch_40_df,family="binomial")
+logit_total_15 <- glm(correct ~ num_total,data=epoch_15_df,family="binomial")
 
 
 
-
-
+#logit for ratio variable
+#epoch 40
+summary(logit_ratio_40)
+ggplot(epoch_40_df, aes(x=ratio_numeric, y=correct)) + geom_point() + 
+  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+  ggtitle("Epoch 40 Responses and Log Regression") +
+  labs(y='Correct', x = 'Dot Ratio') 
+#Epoch 15
+summary(logit_ratio_15)
+ggplot(epoch_15_df, aes(x=ratio_numeric, y=correct)) + geom_point() + 
+  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+  ggtitle("Epoch 15 Responses and Log Regression") +
+  labs(y='Correct', x = 'Dot Ratio') 
+#logit for total dots variable
+#epoch 40
+summary(logit_total_40)
+ggplot(epoch_40_df, aes(x=num_total, y=correct)) + geom_point() + 
+  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+  ggtitle("Epoch 40 Responses and Log Regression") +
+  labs(y='Correct', x = 'Total Dots') 
+#Epoch 15
+summary(logit_total_15)
+ggplot(epoch_15_df, aes(x=num_total, y=correct)) + geom_point() + 
+  stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) +
+  ggtitle("Epoch 40 Responses and Log Regression") +
+  labs(y='Correct', x = 'Total Dots') 
 
